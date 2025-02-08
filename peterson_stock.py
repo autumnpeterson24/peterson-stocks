@@ -15,7 +15,19 @@ when writing and only having the latest stock.
 
 import requests
 from datetime import date
+import json
+import math
 
+def extract_price_lst(raw_data_dict: dict)->list[float]:
+    """ Takes in the full data received from the request and extracts the list of close prices that are converted to floats"""
+
+    close_lst = []
+
+    for data_rows in raw_data_dict['data']['tradesTable']['rows']:
+        close_lst.append(data_rows['close'])
+
+    close_lst = [float(p.replace("$", "")) for p in close_lst] # removing the '$' from the close prices and converting to floats for operations to be performed later
+    return close_lst
 
 def download_data(ticker: str) -> dict:
     """ Requests data from https://api.nasdaq.com based on the given ticker and outputs a dictionary of the min, max, average, median of the 
@@ -41,7 +53,35 @@ def download_data(ticker: str) -> dict:
     print(f"Requesting: {base_url + path}") # check to make sure url is correct
     try:
         response = requests.get(base_url + path, headers=headers, timeout=10) #timeout means if it takes more than 10 sec to cut it off
-        print(f"Response received! Status code: {response.status_code}") # check if respose is properly received 
+        print(f"Response received! Status code: {response.status_code}") # check if respose is properly received
+        if "application/json" in response.headers.get("Content-Type", ""): # retrieve the json data we want to scrape data from
+            data_dict = dict(response.json())
+
+            close_prices = extract_price_lst(data_dict) # converts to a price list that is floats so numerical operations can be performed
+
+            
+            min_close = min(close_prices) # get the min close price
+            max_close = max(close_prices) # get the max close price
+            avg_close = sum(close_prices) / len(close_prices) # get the avg close price
+
+            sorted_close = sorted(close_prices)
+
+            med_index = len(close_prices) // 2 # integer division so no indexing with a float
+
+            if((len(close_prices) / 2) % 2 !=0): # if it's odd there is a clean middle element to take
+                median = sorted_close[med_index] # if there is a clean middle we can directly take the median
+
+            else:
+                median = (sorted_close[med_index - 1] + sorted_close[med_index]) / 2 # if there is no clean middle term, take the average of the middle 2
+                        
+            final_data = dict(ticker=ticker, min=min_close, max=max_close, average=avg_close, median=median) # the final data we want to save to the json
+
+            print(final_data)
+            #final_data = {}
+
+
+            return final_data
+ 
         
 
     except requests.exceptions.Timeout: # if the request takes too long it times out and returns none
